@@ -1,0 +1,13 @@
+{
+  "name": "Digital Signage Player",
+  "short_name": "Player",
+  "start_url": "/player",
+  "display": "fullscreen",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "description": "Offline resilient digital signage player",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
