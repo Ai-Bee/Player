@@ -16,7 +16,7 @@ export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({ onRefreshPlayl
         <div className="space-y-4 text-sm">
           <div className="flex items-center justify-between">
             <span>Debug Panel</span>
-            <input type="checkbox" checked={debug} onChange={e => setDebug(e.target.checked)} />
+            <input autoFocus type="checkbox" checked={debug} onChange={e => setDebug(e.target.checked)} className="focus:ring-2 focus:ring-white focus:outline-none" />
           </div>
           <div>
             <span className="block mb-1">Transition Style</span>

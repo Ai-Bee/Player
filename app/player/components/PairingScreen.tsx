@@ -43,7 +43,7 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ pairingCode, scree
         {content}
         <div className="mt-6">
           {status === 'error' && (
-            <button onClick={onRetry} className="px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600">Retry</button>
+            <button autoFocus onClick={onRetry} className="px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600 focus:ring-2 focus:ring-white focus:outline-none">Retry</button>
           )}
         </div>
       </div>

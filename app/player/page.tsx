@@ -40,13 +40,25 @@ export default function PlayerPage() {
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [current, setCurrent] = useState<QueueEntry | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
-  const [, setConsecutiveErrors] = useState(0);
+  const [consecutiveErrors, setConsecutiveErrors] = useState(0);
   const debug = useSettingsStore((s: SettingsState) => s.debug);
   const showSettings = useSettingsStore((s: SettingsState) => s.showSettings);
   const toggleSettings = useSettingsStore((s: SettingsState) => s.toggleSettings);
   const [tickerState, ] = useState<{ config?: TickerConfig; content?: TickerContent }>({});
   const [online, setOnline] = useState(true);
   const playbackCtrlRef = useRef<PlaybackController | null>(null);
+
+  // Self-Healing Watchdog
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Reload if offline for too long (e.g. 1 hour) or too many errors
+      if (consecutiveErrors > 10) {
+        console.warn('Watchdog: Too many consecutive errors. Reloading...');
+        window.location.reload();
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [consecutiveErrors]);
 
   useEffect(() => {
     function handleOnline() { setOnline(true); }
