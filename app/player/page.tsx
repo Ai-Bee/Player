@@ -14,12 +14,15 @@ import { getScreenByCode } from '../../lib/player/getScreenByCode';
 const PAIRING_CODE_KEY = 'player_pairing_code_v1';
 
 async function getOrCreatePairingCode(): Promise<string> {
-  const stored = localStorage.getItem(PAIRING_CODE_KEY);
+  const stored = typeof window !== 'undefined' ? localStorage.getItem(PAIRING_CODE_KEY) : null;
   if (stored && stored.length === 6) return stored;
   const code = await generatePairingCode();
-  localStorage.setItem(PAIRING_CODE_KEY, code);
+  if (typeof window !== 'undefined') localStorage.setItem(PAIRING_CODE_KEY, code);
   return code;
 }
+
+import { useTVMode } from '../../lib/player/hooks/useTVMode';
+import { useSpatialNavigation } from '../../lib/player/hooks/useSpatialNavigation';
 import { saveQueue, loadQueue } from '../../lib/player/offlineCache';
 import { fetchPlaylist, fetchPlaylistById, fetchMediaBatch, heartbeat } from '../../lib/player/apiClient';
 import { resolvePlaylistToQueue, hydrateQueueSources } from '../../lib/player/playlistResolver';
@@ -44,9 +47,16 @@ export default function PlayerPage() {
   const debug = useSettingsStore((s: SettingsState) => s.debug);
   const showSettings = useSettingsStore((s: SettingsState) => s.showSettings);
   const toggleSettings = useSettingsStore((s: SettingsState) => s.toggleSettings);
-  const [tickerState, ] = useState<{ config?: TickerConfig; content?: TickerContent }>({});
+  const [tickerState,] = useState<{ config?: TickerConfig; content?: TickerContent }>({});
   const [online, setOnline] = useState(true);
   const playbackCtrlRef = useRef<PlaybackController | null>(null);
+
+  const isTV = useTVMode();
+  // Enable spatial navigation if we are NOT in playback or if settings are open
+  // Actually, user said: "interaction disabled during media playback"
+  const isPlaybackActive = pairingStatus === 'paired' && current !== undefined;
+  const navEnabled = isTV && (!isPlaybackActive || showSettings);
+  useSpatialNavigation(navEnabled);
 
   // Self-Healing Watchdog
   useEffect(() => {
@@ -112,8 +122,8 @@ export default function PlayerPage() {
     const mediaIds = Array.from(new Set(playlist.items.map(i => i.mediaId)));
     const mediaRes = await fetchMediaBatch(mediaIds);
     if (!mediaRes.ok) { setError(mediaRes.error); return; }
-  const mediaMap = new Map<string, MediaItem>(mediaRes.data.map((m: MediaItem) => [m.id, m]));
-  const queueEntries = resolvePlaylistToQueue(playlist, mediaMap);
+    const mediaMap = new Map<string, MediaItem>(mediaRes.data.map((m: MediaItem) => [m.id, m]));
+    const queueEntries = resolvePlaylistToQueue(playlist, mediaMap);
     if (queueEntries.length === 0) { setError('Playlist empty or no playable items.'); return; }
     // Hydrate signed/public URLs before starting playback
     await hydrateQueueSources(queueEntries, mediaMap);
@@ -140,7 +150,7 @@ export default function PlayerPage() {
         // 2. Register device (ignore error if already exists)
         try {
           await registerDevice({ code, name: 'Player Device' });
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (e) {
           // Device may already exist, that's fine
         }
@@ -151,7 +161,7 @@ export default function PlayerPage() {
         // 4. Fetch screen info by code
         const screen = await getScreenByCode(code);
         if (!screen) throw new Error('Paired, but could not fetch screen info.');
-  setScreenId(screen.id);
+        setScreenId(screen.id);
         setPairingStatus('paired');
         // Optionally, load playlist for this screen
         if (screen.playlistId) {
@@ -161,7 +171,7 @@ export default function PlayerPage() {
           await loadPlaylist({ screenId: screen.id });
           startHeartbeat(screen.id);
         }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
         setPairingStatus('error');
         setError(e.message || 'Pairing failed');
@@ -179,8 +189,8 @@ export default function PlayerPage() {
         <PairingScreen pairingCode={pairingCode || undefined} status={pairingStatus} error={error || undefined} />
       )}
       {pairingStatus === 'paired' && (
-        <PlaybackStage 
-          current={current} 
+        <PlaybackStage
+          current={current}
           debug={debug}
           onMediaError={(entry, message) => {
             console.error('Media error:', message, entry);

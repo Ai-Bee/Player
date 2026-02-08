@@ -1,27 +1,61 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+  --safe-area-padding: 0;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
   }
 }
 
+/* TV Mode Behavioral Contract */
+.tv-mode {
+  --safe-area-padding: 5vh 5vw;
+}
+
+.tv-mode body {
+  font-size: 1.5rem; /* 10ft UI scaling baseline */
+}
+
+/* Strong Focus Indicators */
+.tv-mode :focus {
+  outline: 4px solid #facc15 !important; /* Bright yellow */
+  outline-offset: 2px;
+  box-shadow: 0 0 15px rgba(250, 204, 21, 0.5);
+  border-radius: 4px;
+}
+
+/* Suppress Hover in TV Mode */
+.tv-mode :hover {
+  background-color: inherit;
+  cursor: none;
+}
+
+/* Override Tailwind interactive defaults in TV mode if necessary */
+.tv-mode button:hover {
+  transform: none;
+}
+
+.tv-mode button:focus {
+  transform: scale(1.05);
+  transition: transform 0.2s ease-out;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
   font-family: Arial, Helvetica, sans-serif;
   overflow: hidden; /* Prevent scrolling on TV */
 }
