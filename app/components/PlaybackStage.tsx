@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 import Image from 'next/image';
-import { QueueEntry } from '../../../lib/player/types';
+import { QueueEntry } from '../../lib/player/types';
 
 interface PlaybackStageProps {
   current?: QueueEntry;

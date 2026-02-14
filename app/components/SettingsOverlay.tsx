@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useRef } from 'react';
-import { useSettingsStore } from '../../../lib/player/settingsStore';
-import { clearPairing } from '../../../lib/player/pairingManager';
+import { useSettingsStore } from '../../lib/player/settingsStore';
+import { clearPairing } from '../../lib/player/pairingManager';
 
 interface SettingsOverlayProps {
   onRefreshPlaylist?: () => void;

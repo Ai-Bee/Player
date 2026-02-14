@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { QueueEntry } from '../../../lib/player/types';
+import { QueueEntry } from '../../lib/player/types';
 
 interface DebugOverlayProps {
   queue: QueueEntry[];

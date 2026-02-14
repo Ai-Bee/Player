@@ -1,65 +1,189 @@
-import Image from "next/image";
+"use client";
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { FullscreenContainer } from './components/FullscreenContainer';
+import { PairingScreen } from './components/PairingScreen';
+import { PlaybackStage } from './components/PlaybackStage';
+import { TickerBar } from './components/TickerBar';
+import { DebugOverlay } from './components/DebugOverlay';
+import { OfflineBadge } from './components/OfflineBadge';
+import { SettingsOverlay } from './components/SettingsOverlay';
+import { useSettingsStore, SettingsState } from '../lib/player/settingsStore';
+import { generatePairingCode, registerDevice, pollDevicePaired } from '../lib/player/devicePairing';
+import { getScreenByCode } from '../lib/player/getScreenByCode';
+import { useTVMode } from '../lib/player/hooks/useTVMode';
+import { useSpatialNavigation } from '../lib/player/hooks/useSpatialNavigation';
+import { saveQueue, loadQueue } from '../lib/player/offlineCache';
+import { fetchPlaylist, fetchPlaylistById, fetchMediaBatch, heartbeat } from '../lib/player/apiClient';
+import { resolvePlaylistToQueue, hydrateQueueSources } from '../lib/player/playlistResolver';
+import { PlaybackController } from '../lib/player/playbackController';
+import { QueueEntry, TickerConfig, TickerContent, MediaItem } from '../lib/player/types';
+import { preload } from '../lib/player/preloader';
+
+const PAIRING_CODE_KEY = 'player_pairing_code_v1';
+
+async function getOrCreatePairingCode(): Promise<string> {
+  const stored = typeof window !== 'undefined' ? localStorage.getItem(PAIRING_CODE_KEY) : null;
+  if (stored && stored.length === 6) return stored;
+  const code = await generatePairingCode();
+  if (typeof window !== 'undefined') localStorage.setItem(PAIRING_CODE_KEY, code);
+  return code;
+}
 
 export default function Home() {
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingStatus, setPairingStatus] = useState<'init' | 'registering' | 'waiting' | 'paired' | 'error'>("init");
+  const [screenId, setScreenId] = useState<string | null>(null);
+  const [queue, setQueue] = useState<QueueEntry[]>([]);
+  const [current, setCurrent] = useState<QueueEntry | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
+  const [consecutiveErrors, setConsecutiveErrors] = useState(0);
+  const debug = useSettingsStore((s: SettingsState) => s.debug);
+  const showSettings = useSettingsStore((s: SettingsState) => s.showSettings);
+  const toggleSettings = useSettingsStore((s: SettingsState) => s.toggleSettings);
+  const [tickerState,] = useState<{ config?: TickerConfig; content?: TickerContent }>({});
+  const [online, setOnline] = useState(true);
+  const playbackCtrlRef = useRef<PlaybackController | null>(null);
+
+  const isTV = useTVMode();
+  const isPlaybackActive = pairingStatus === 'paired' && current !== undefined;
+  const navEnabled = isTV && (!isPlaybackActive || showSettings);
+  useSpatialNavigation(navEnabled);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (consecutiveErrors > 10) {
+        console.warn('Watchdog: Too many consecutive errors. Reloading...');
+        window.location.reload();
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [consecutiveErrors]);
+
+  useEffect(() => {
+    function handleOnline() { setOnline(true); }
+    function handleOffline() { setOnline(false); }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
+  }, []);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(err => console.warn('SW registration failed', err));
+    }
+  }, []);
+
+  const startHeartbeat = useCallback((screenId: string, playlistId?: string) => {
+    const start = performance.now();
+    const send = () => {
+      const uptimeSeconds = Math.floor((performance.now() - start) / 1000);
+      heartbeat(screenId, {
+        screenId,
+        playlistId,
+        currentItemId: playbackCtrlRef.current?.getCurrent()?.itemId || null,
+        uptimeSeconds,
+        timestamp: new Date().toISOString(),
+        online: navigator.onLine,
+      });
+    };
+    send();
+    const id = setInterval(send, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  const loadPlaylist = useCallback(async (p: { screenId: string; playlistId?: string | null }) => {
+    const playlistRes = p.playlistId ? await fetchPlaylistById(p.playlistId) : await fetchPlaylist(p.screenId);
+    if (!playlistRes.ok) {
+      const cached = loadQueue();
+      if (cached && cached.length > 0) {
+        setQueue(cached);
+        if (!playbackCtrlRef.current) {
+          playbackCtrlRef.current = new PlaybackController({ onItemStart: (entry) => setCurrent(entry) });
+        }
+        playbackCtrlRef.current.start(cached, 0);
+        setError('Using cached playlist (offline)');
+        return;
+      }
+      setError(playlistRes.error);
+      return;
+    }
+    const playlist = playlistRes.data;
+    const mediaIds = Array.from(new Set(playlist.items.map(i => i.mediaId)));
+    const mediaRes = await fetchMediaBatch(mediaIds);
+    if (!mediaRes.ok) { setError(mediaRes.error); return; }
+    const mediaMap = new Map<string, MediaItem>(mediaRes.data.map((m: MediaItem) => [m.id, m]));
+    const queueEntries = resolvePlaylistToQueue(playlist, mediaMap);
+    if (queueEntries.length === 0) { setError('Playlist empty or no playable items.'); return; }
+    await hydrateQueueSources(queueEntries, mediaMap);
+    setQueue(queueEntries);
+    if (!playbackCtrlRef.current) {
+      playbackCtrlRef.current = new PlaybackController({ onItemStart: (entry) => setCurrent(entry) });
+    }
+    playbackCtrlRef.current.start(queueEntries, 0);
+    preload(queueEntries, 0).catch(err => console.warn('Preload error', err));
+    saveQueue(queueEntries);
+    setError(null);
+    setConsecutiveErrors(0);
+  }, []);
+
+  useEffect(() => {
+    async function doPairing() {
+      setPairingStatus('init');
+      try {
+        const code = await getOrCreatePairingCode();
+        setPairingCode(code);
+        setPairingStatus('registering');
+        try {
+          await registerDevice({ code, name: 'Player Device' });
+        } catch (e) {
+          // Device may already exist
+        }
+        setPairingStatus('waiting');
+        const paired = await pollDevicePaired(code, 3000, 15 * 60 * 1000);
+        if (!paired) throw new Error('Pairing timed out.');
+        const screen = await getScreenByCode(code);
+        if (!screen) throw new Error('Paired, but could not fetch screen info.');
+        setScreenId(screen.id);
+        setPairingStatus('paired');
+        if (screen.playlistId) {
+          await loadPlaylist({ screenId: screen.id, playlistId: screen.playlistId });
+          startHeartbeat(screen.id, screen.playlistId);
+        } else {
+          await loadPlaylist({ screenId: screen.id });
+          startHeartbeat(screen.id);
+        }
+      } catch (e: any) {
+        setPairingStatus('error');
+        setError(e.message || 'Pairing failed');
+      }
+    }
+    doPairing();
+    return undefined;
+  }, [loadPlaylist, startHeartbeat]);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <FullscreenContainer>
+      {pairingStatus !== 'paired' && (
+        <PairingScreen pairingCode={pairingCode || undefined} status={pairingStatus} error={error || undefined} />
+      )}
+      {pairingStatus === 'paired' && (
+        <PlaybackStage
+          current={current}
+          debug={debug}
+          onMediaError={(entry, message) => {
+            console.error('Media error:', message, entry);
+            setError(`Media error: ${message}`);
+          }}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      )}
+      <TickerBar config={tickerState.config} content={tickerState.content} />
+      {debug && <DebugOverlay queue={queue} currentIndex={current ? queue.findIndex(q => q.itemId === current.itemId) : -1} online={online} />}
+      <OfflineBadge online={online} />
+      <button
+        onClick={toggleSettings}
+        className="absolute top-2 right-2 bg-zinc-800 text-xs px-2 py-1 rounded"
+      >Settings</button>
+      {showSettings && <SettingsOverlay onRefreshPlaylist={() => screenId && loadPlaylist({ screenId })} />}
+    </FullscreenContainer>
   );
 }

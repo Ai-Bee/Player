@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useRef } from 'react';
-import { TickerConfig, TickerContent } from '../../../lib/player/types';
+import { TickerConfig, TickerContent } from '../../lib/player/types';
 
 interface TickerBarProps {
   config?: TickerConfig;
