@@ -19,6 +19,11 @@ import { PlaybackController } from '../lib/player/playbackController';
 import { QueueEntry, TickerConfig, TickerContent, MediaItem } from '../lib/player/types';
 import { preload } from '../lib/player/preloader';
 
+import { resolveLayout, ResolvedLayout } from '../lib/player/layoutResolver';
+import { MainZone } from './components/MainZone';
+import { SidePanel } from './components/SidePanel';
+import { OverlayManager } from './components/OverlayManager';
+
 const PAIRING_CODE_KEY = 'player_pairing_code_v1';
 
 async function getOrCreatePairingCode(): Promise<string> {
@@ -41,6 +46,8 @@ export default function Home() {
   const showSettings = useSettingsStore((s: SettingsState) => s.showSettings);
   const toggleSettings = useSettingsStore((s: SettingsState) => s.toggleSettings);
   const [tickerState,] = useState<{ config?: TickerConfig; content?: TickerContent }>({});
+  const [layout, setLayout] = useState<TickerConfig | undefined>(undefined); // Placeholder for future layout sync
+  const [screenLayout, setScreenLayout] = useState<{ sidePanel?: any; ticker?: TickerConfig; overlays?: any }>({});
   const [online, setOnline] = useState(true);
   const playbackCtrlRef = useRef<PlaybackController | null>(null);
 
@@ -48,6 +55,12 @@ export default function Home() {
   const isPlaybackActive = pairingStatus === 'paired' && current !== undefined;
   const navEnabled = isTV && (!isPlaybackActive || showSettings);
   useSpatialNavigation(navEnabled);
+
+  const resolved = resolveLayout({
+    sidePanel: screenLayout.sidePanel,
+    ticker: tickerState.config || screenLayout.ticker,
+    overlays: screenLayout.overlays,
+  });
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -145,6 +158,9 @@ export default function Home() {
         if (!screen) throw new Error('Paired, but could not fetch screen info.');
         setScreenId(screen.id);
         setPairingStatus('paired');
+        if (screen.layout) {
+          setScreenLayout(screen.layout);
+        }
         if (screen.playlistId) {
           await loadPlaylist({ screenId: screen.id, playlistId: screen.playlistId });
           startHeartbeat(screen.id, screen.playlistId);
@@ -166,22 +182,50 @@ export default function Home() {
       {pairingStatus !== 'paired' && (
         <PairingScreen pairingCode={pairingCode || undefined} status={pairingStatus} error={error || undefined} />
       )}
-      {pairingStatus === 'paired' && (
-        <PlaybackStage
-          current={current}
-          debug={debug}
-          onMediaError={(entry, message) => {
-            console.error('Media error:', message, entry);
-            setError(`Media error: ${message}`);
-          }}
-        />
+
+      {pairingStatus === 'paired' && !resolved.fullscreenOverride && (
+        <>
+          <MainZone box={resolved.main}>
+            <PlaybackStage
+              current={current}
+              debug={debug}
+              onMediaError={(entry, message) => {
+                console.error('Media error:', message, entry);
+                setError(`Media error: ${message}`);
+              }}
+            />
+          </MainZone>
+
+          {resolved.sidePanel && (
+            <SidePanel box={resolved.sidePanel} contentUrl={screenLayout.sidePanel?.contentUrl} />
+          )}
+
+          {resolved.ticker && (
+            <TickerBar
+              config={tickerState.config || screenLayout.ticker}
+              content={tickerState.content}
+              style={{
+                top: resolved.ticker.top,
+                left: resolved.ticker.left,
+                width: resolved.ticker.width,
+                height: resolved.ticker.height,
+              }}
+            />
+          )}
+
+          <OverlayManager config={screenLayout.overlays} />
+        </>
       )}
-      <TickerBar config={tickerState.config} content={tickerState.content} />
+
+      {pairingStatus === 'paired' && resolved.fullscreenOverride && (
+        <OverlayManager config={screenLayout.overlays} />
+      )}
+
       {debug && <DebugOverlay queue={queue} currentIndex={current ? queue.findIndex(q => q.itemId === current.itemId) : -1} online={online} />}
       <OfflineBadge online={online} />
       <button
         onClick={toggleSettings}
-        className="absolute top-2 right-2 bg-zinc-800 text-xs px-2 py-1 rounded"
+        className="absolute top-2 right-2 bg-zinc-800 text-xs px-2 py-1 rounded z-60"
       >Settings</button>
       {showSettings && <SettingsOverlay onRefreshPlaylist={() => screenId && loadPlaylist({ screenId })} />}
     </FullscreenContainer>

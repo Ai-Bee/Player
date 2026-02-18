@@ -36,14 +36,6 @@ export interface Playlist {
   updated_at?: string;
 }
 
-export interface Screen {
-  id: string;
-  code: string;
-  resolution_id?: string;
-  playlistId?: string | null;
-  paired_at?: string | null;
-}
-
 export interface TickerTheme {
   bg?: string;
   color?: string;
@@ -76,9 +68,48 @@ export interface QueueEntry {
   endUnix?: number; // optional schedule window end (epoch seconds)
 }
 
+export interface SidePanelConfig {
+  enabled: boolean;
+  position: "left" | "right";
+  widthPercent: number; // max 30
+  contentUrl?: string;
+}
+
+export interface OverlayConfig {
+  logo?: {
+    enabled: boolean;
+    url: string;
+    position: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  };
+  clock?: {
+    enabled: boolean;
+    position: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  };
+  override?: {
+    active: boolean;
+    message: string;
+  };
+}
+
+export interface ScreenLayout {
+  sidePanel?: SidePanelConfig;
+  ticker?: TickerConfig;
+  overlays?: OverlayConfig;
+}
+
+export interface Screen {
+  id: string;
+  code: string;
+  resolution_id?: string;
+  playlistId?: string | null;
+  paired_at?: string | null;
+  layout?: ScreenLayout;
+}
+
 export interface PairingInfo {
   screenId: string;
   playlistId?: string | null;
+  layout?: ScreenLayout;
 }
 
 export interface HeartbeatPayload {
