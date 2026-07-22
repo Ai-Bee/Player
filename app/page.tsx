@@ -85,12 +85,19 @@ export default function Home() {
     }
   }, []);
 
-  const startConfigPolling = useCallback((screenId: string) => {
+  const startConfigPolling = useCallback((screenId: string, currentPlaylistId?: string | null) => {
     const fetch = async () => {
       const detailsRes = await fetchScreenDetails(screenId);
-      console.log({})
       if (detailsRes.ok) {
-        const { data, bottom_texts } = detailsRes.data;
+        const data = detailsRes.data;
+        const bottom_texts = data.bottom_texts || [];
+        
+        // If the assigned playlist has changed in the CMS, reload the player to re-initialize
+        if (currentPlaylistId !== undefined && data.assigned_playlist_id !== currentPlaylistId) {
+          window.location.reload();
+          return;
+        }
+
         setScreenLayout({
           sidePanel: data.side_content_type !== 'none' ? {
             enabled: true,
@@ -241,7 +248,7 @@ export default function Home() {
         if (!active) return;
 
         // Start polling for screen details (layout, ticker, overlays)
-        const stopPolling = startConfigPolling(screen.id);
+        const stopPolling = startConfigPolling(screen.id, screen.playlistId);
         cleanupFns.push(stopPolling);
 
         if (screen.playlistId) {

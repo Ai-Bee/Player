@@ -101,15 +101,20 @@ export interface ScreenLayout {
 export interface ScreenResolution {
   id: string;
   name: string | null;
+  notes?: string | null;
   width: number | null;
   height: number | null;
+  created_at?: string | null;
+  created_by?: string | null;
+  updated_at?: string | null;
   aspect_ratio: string | null;
   refresh_rate: number | null;
 }
 
 export interface AssignedPlaylist {
   id: string;
-  title: string;
+  title?: string;
+  name?: string;
 }
 
 export interface BottomTextTicker {
@@ -125,6 +130,15 @@ export interface ScreenData {
   name: string;
   location: string | null;
   status: 'online' | 'offline';
+  last_seen_at?: string | null;
+  resolution_id?: string | null;
+  assigned_playlist_id?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  pairing_code?: string | null;
+  paired_at?: string | null;
+  device_id?: string | null;
 
   // Side Content (Split-Screen)
   side_content_type: 'none' | 'image' | 'iframe' | null;
@@ -133,15 +147,15 @@ export interface ScreenData {
   // Overlays
   logo_url: string | null;
   override_message: string | null;
-
-  playlist: AssignedPlaylist | null;
-  resolution: ScreenResolution | null;
-}
-
-export interface ScreenResponse {
-  data: ScreenData;
+  organization_id?: string | null;
+  location_id?: string | null;
+  assigned_playlist?: AssignedPlaylist | null;
+  playlist?: AssignedPlaylist | null;
+  resolution?: ScreenResolution | null;
   bottom_texts: BottomTextTicker[];
 }
+
+export interface ScreenResponse extends ScreenData {}
 
 export interface Screen {
   id: string;
