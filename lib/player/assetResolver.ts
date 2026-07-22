@@ -1,5 +1,6 @@
 import { MediaItem } from './types';
 import { ensureSupabase } from './supabaseClient';
+import { getCachedMediaUrl } from './mediaCache';
 
 // Resolves a media item's usable URL.
 // Priority: explicit media.url > Supabase storage public/signed URL from storage_path.
@@ -16,6 +17,9 @@ interface ResolveOptions {
 }
 
 export async function resolveMediaSrc(media: MediaItem, opts: ResolveOptions = {}): Promise<string> {
+  const cachedUrl = await getCachedMediaUrl(media.id);
+  if (cachedUrl) return cachedUrl;
+
   if (media.url) return media.url;
   if (!media.storage_path || !BUCKET) return '';
   try {

@@ -20,6 +20,8 @@ export class PlaybackController {
   private driftGrace: number;
   private rafInterval: number;
   private lastFrameCheck = 0;
+  private isPaused = false;
+  private pausedTime = 0;
   private visibilityHandler = () => this.handleVisibilityChange();
 
   constructor(events: PlaybackEvents = {}, opts: PlaybackControllerOptions = {}) {
@@ -28,7 +30,10 @@ export class PlaybackController {
     this.rafInterval = opts.rafIntervalMs ?? 100; // check roughly every 100ms
   }
 
+  private animationFrameId: number | null = null;
+
   start(queue: QueueEntry[], startIndex = 0) {
+    this.stop();
     this.queue = queue;
     this.index = startIndex;
     this.running = true;
@@ -39,7 +44,25 @@ export class PlaybackController {
 
   stop() {
     this.running = false;
+    this.isPaused = false;
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
     document.removeEventListener('visibilitychange', this.visibilityHandler);
+  }
+
+  pauseTimer() {
+    if (this.isPaused || !this.running) return;
+    this.isPaused = true;
+    this.pausedTime = performance.now();
+  }
+
+  resumeTimer() {
+    if (!this.isPaused || !this.running) return;
+    const pausedDuration = performance.now() - this.pausedTime;
+    this.deadline += pausedDuration;
+    this.isPaused = false;
   }
 
   next() {
@@ -78,15 +101,15 @@ export class PlaybackController {
     const now = performance.now();
     if (now - this.lastFrameCheck >= this.rafInterval) {
       this.lastFrameCheck = now;
-      if (now >= this.deadline) {
+      if (!this.isPaused && now >= this.deadline) {
         this.next();
       }
     }
-    requestAnimationFrame(() => this.loop());
+    this.animationFrameId = requestAnimationFrame(() => this.loop());
   }
 
   private handleVisibilityChange() {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && !this.isPaused) {
       const remaining = this.deadline - performance.now();
       if (remaining < -this.driftGrace) {
         // We overshot significantly while hidden; resync

@@ -1,25 +1,37 @@
-
 import { ensureSupabase } from './supabaseClient';
 import { Screen } from './types';
 
-// Fetch a screen by pairing code directly from Supabase
-export async function getScreenByCode(code: string): Promise<Screen | null> {
+// Simple JWT decoder
+function parseJwt(token: string) {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch (e) {
+    return null;
+  }
+}
+
+// Fetch the paired screen securely using the device token
+export async function getScreenByCode(_code: string): Promise<Screen | null> {
+  let token;
+  if (typeof window !== 'undefined') {
+    token = localStorage.getItem('player_device_token');
+  }
+  if (!token) return null;
+  
+  const decoded = parseJwt(token);
+  if (!decoded || !decoded.screen_id) return null;
+
   const supabase = ensureSupabase();
   const { data, error } = await supabase
     .from('screens')
     .select('id, screen_code, resolution_id, assigned_playlist_id, paired_at')
-    .eq('pairing_code', code)
+    .eq('id', decoded.screen_id)
     .single();
-  if (error) {
-    // Gracefully handle 'not found' error (PGRST116)
-    if (error.code === 'PGRST116' || error.message?.includes('0 rows')) {
-      return null;
-    }
-    // Optionally, log or rethrow other errors
-    // console.error(error);
+
+  if (error || !data) {
     return null;
   }
-  // Map database column names to Screen type
+  
   return {
     id: data.id,
     code: data.screen_code,

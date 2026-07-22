@@ -73,6 +73,7 @@ export interface SidePanelConfig {
   position: "left" | "right";
   widthPercent: number; // max 30
   contentUrl?: string;
+  contentType?: 'image' | 'iframe';
 }
 
 export interface OverlayConfig {
@@ -95,6 +96,51 @@ export interface ScreenLayout {
   sidePanel?: SidePanelConfig;
   ticker?: TickerConfig;
   overlays?: OverlayConfig;
+}
+
+export interface ScreenResolution {
+  id: string;
+  name: string | null;
+  width: number | null;
+  height: number | null;
+  aspect_ratio: string | null;
+  refresh_rate: number | null;
+}
+
+export interface AssignedPlaylist {
+  id: string;
+  title: string;
+}
+
+export interface BottomTextTicker {
+  id: string;
+  content: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface ScreenData {
+  id: string;
+  screen_code: string;
+  name: string;
+  location: string | null;
+  status: 'online' | 'offline';
+
+  // Side Content (Split-Screen)
+  side_content_type: 'none' | 'image' | 'iframe' | null;
+  side_content: { imageUrl?: string; src?: string } | null;
+
+  // Overlays
+  logo_url: string | null;
+  override_message: string | null;
+
+  playlist: AssignedPlaylist | null;
+  resolution: ScreenResolution | null;
+}
+
+export interface ScreenResponse {
+  data: ScreenData;
+  bottom_texts: BottomTextTicker[];
 }
 
 export interface Screen {

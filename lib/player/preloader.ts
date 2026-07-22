@@ -1,4 +1,5 @@
 import { QueueEntry } from './types';
+import { cacheMediaBlob } from './mediaCache';
 
 export interface PreloadResultEntry {
   entry: QueueEntry;
@@ -16,9 +17,11 @@ async function preloadSingle(entry: QueueEntry): Promise<PreloadResultEntry> {
   try {
     switch (entry.type) {
       case 'image':
+        await cacheMediaBlob(entry.mediaId, entry.src);
         await preloadImage(entry.src);
         break;
       case 'video':
+        await cacheMediaBlob(entry.mediaId, entry.src);
         await preloadVideoMetadata(entry.src);
         break;
       default:

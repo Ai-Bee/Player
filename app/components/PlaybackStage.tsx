@@ -7,10 +7,13 @@ interface PlaybackStageProps {
   current?: QueueEntry;
   debug?: boolean;
   onMediaError?: (entry: QueueEntry, message: string) => void;
+  onVideoEnded?: () => void;
+  onVideoWaiting?: () => void;
+  onVideoPlaying?: () => void;
 }
 
 // Renders the current media entry. Video/image/iframe support.
-export const PlaybackStage: React.FC<PlaybackStageProps> = ({ current, debug, onMediaError }) => {
+export const PlaybackStage: React.FC<PlaybackStageProps> = ({ current, debug, onMediaError, onVideoEnded, onVideoWaiting, onVideoPlaying }) => {
   if (!current) {
     return <div className="flex flex-1 items-center justify-center text-zinc-400">No content</div>;
   }
@@ -41,6 +44,9 @@ export const PlaybackStage: React.FC<PlaybackStageProps> = ({ current, debug, on
           playsInline
           className="w-full h-full object-contain"
           onError={() => onMediaError && onMediaError(current, 'Video failed to load')}
+          onEnded={onVideoEnded}
+          onWaiting={onVideoWaiting}
+          onPlaying={onVideoPlaying}
         />
       );
       break;
@@ -63,7 +69,7 @@ export const PlaybackStage: React.FC<PlaybackStageProps> = ({ current, debug, on
   }
 
   return (
-    <div className="relative flex-1 flex items-center justify-center bg-black">
+    <div key={current.itemId} className="relative flex-1 flex items-center justify-center bg-black animate-fade-in w-full h-full">
       {node}
       {debug && (
         <div className="absolute top-2 left-2 bg-zinc-800/70 text-xs p-2 rounded">

@@ -5,9 +5,10 @@ import { Box } from '@/lib/player/layoutResolver';
 interface SidePanelProps {
     box: Box & { position: "left" | "right" };
     contentUrl?: string;
+    contentType?: 'image' | 'iframe';
 }
 
-export const SidePanel: React.FC<SidePanelProps> = ({ box, contentUrl }) => {
+export const SidePanel: React.FC<SidePanelProps> = ({ box, contentUrl, contentType }) => {
     return (
         <div
             className="absolute transition-all duration-500 ease-in-out border-zinc-800 bg-zinc-900 overflow-hidden"
@@ -21,11 +22,19 @@ export const SidePanel: React.FC<SidePanelProps> = ({ box, contentUrl }) => {
             }}
         >
             {contentUrl ? (
-                <iframe
-                    src={contentUrl}
-                    className="w-full h-full border-0"
-                    title="Side Panel Content"
-                />
+                contentType === 'image' ? (
+                    <img
+                        src={contentUrl}
+                        className="w-full h-full object-cover"
+                        alt="Side Panel Content"
+                    />
+                ) : (
+                    <iframe
+                        src={contentUrl}
+                        className="w-full h-full border-0"
+                        title="Side Panel Content"
+                    />
+                )
             ) : (
                 <div className="flex items-center justify-center h-full text-zinc-500 text-sm italic">
                     Side Panel

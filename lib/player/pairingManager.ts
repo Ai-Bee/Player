@@ -25,6 +25,9 @@ export function savePairing(info: PairingInfo) {
 
 export function clearPairing() {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem('player_device_token');
+  localStorage.removeItem('player_pairing_code_v1');
+  localStorage.removeItem('player_queue_cache_v1');
 }
 
 // Attempts to get existing pairing or create a new one.

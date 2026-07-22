@@ -1,5 +1,5 @@
 "use client";
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface PairingScreenProps {
   pairingCode?: string;
@@ -10,6 +10,22 @@ interface PairingScreenProps {
 }
 
 export const PairingScreen: React.FC<PairingScreenProps> = ({ pairingCode, screenId, status, error, onRetry }) => {
+  const [timeLeft, setTimeLeft] = useState(15 * 60);
+
+  useEffect(() => {
+    if (status === 'waiting') {
+      setTimeLeft(15 * 60);
+      const timer = setInterval(() => {
+        setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [status, pairingCode]);
+
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+  const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
   let content;
   if (status === 'paired' && screenId) {
     content = (
@@ -26,7 +42,12 @@ export const PairingScreen: React.FC<PairingScreenProps> = ({ pairingCode, scree
     content = (
       <>
         <p className="mb-6 text-2xl text-zinc-300">Enter this code in the CMS to link this device:</p>
-        <div className="text-8xl font-mono tracking-[0.2em] mb-8 font-extrabold text-yellow-400">{pairingCode || '------'}</div>
+        <div className="text-8xl font-mono tracking-[0.2em] mb-4 font-extrabold text-yellow-400">{pairingCode || '------'}</div>
+        {(status === 'waiting' || status === 'registering') && (
+          <div className="text-xl text-zinc-400 mb-8">
+            Expires in <span className="font-mono text-zinc-200">{timeString}</span>
+          </div>
+        )}
         <div className="flex items-center justify-center gap-3 text-xl text-zinc-400">
           <div className="w-4 h-4 rounded-full bg-yellow-500 animate-pulse" />
           {status === 'registering' && 'Registering device...'}
