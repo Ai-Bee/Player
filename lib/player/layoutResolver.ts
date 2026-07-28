@@ -28,10 +28,7 @@ export function resolveLayout(layout?: ScreenLayout): ResolvedLayout {
 
     if (!layout) return result;
 
-    if (layout.overlays?.override?.active) {
-        result.fullscreenOverride = true;
-        return result;
-    }
+
 
     let mainTop = 0;
     let mainLeft = 0;

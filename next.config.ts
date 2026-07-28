@@ -7,6 +7,13 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   reactStrictMode: false,
+  transpilePackages: [
+    '@capacitor/core', 
+    '@capacitor/android', 
+    '@supabase/supabase-js', 
+    'axios', 
+    'zustand'
+  ],
 };
 
 export default nextConfig;

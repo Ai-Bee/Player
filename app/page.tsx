@@ -13,12 +13,13 @@ import { getScreenByCode } from '../lib/player/getScreenByCode';
 import { useTVMode } from '../lib/player/hooks/useTVMode';
 import { useSpatialNavigation } from '../lib/player/hooks/useSpatialNavigation';
 import { saveQueue, loadQueue } from '../lib/player/offlineCache';
-import { fetchPlaylist, fetchPlaylistById, fetchMediaBatch, heartbeat, fetchScreenDetails, subscribeToScreenChanges, subscribeToPlaylistChanges } from '../lib/player/apiClient';
+import { fetchPlaylist, fetchPlaylistById, fetchMediaBatch, heartbeat, getScreen, fetchEffectiveScreenConfig, fetchEffectiveSideContent, fetchBottomTexts, subscribeToScreenChanges, subscribeToPlaylistChanges } from '../lib/player/apiClient';
 import { resolvePlaylistToQueue, hydrateQueueSources } from '../lib/player/playlistResolver';
 import { PlaybackController } from '../lib/player/playbackController';
-import { TickerConfig, TickerContent, MediaItem } from '../lib/player/types';
+import { TickerConfig, TickerContent, MediaItem, EffectiveSideContentItem } from '../lib/player/types';
 import { preload } from '../lib/player/preloader';
 import { resolveLayout } from '../lib/player/layoutResolver';
+import { resolveMediaSrc } from '../lib/player/assetResolver';
 import { MainZone } from './components/MainZone';
 import { SidePanel } from './components/SidePanel';
 import { OverlayManager } from './components/OverlayManager';
@@ -87,29 +88,74 @@ export default function Home() {
 
   const startConfigPolling = useCallback((screenId: string, currentPlaylistId?: string | null) => {
     const fetch = async () => {
-      const detailsRes = await fetchScreenDetails(screenId);
-      if (detailsRes.ok) {
-        const data = detailsRes.data;
-        const bottom_texts = data.bottom_texts || [];
+      const [screenRes, configRes, sideRes, tickerRes] = await Promise.all([
+        getScreen(screenId),
+        fetchEffectiveScreenConfig(screenId),
+        fetchEffectiveSideContent(screenId),
+        fetchBottomTexts(screenId)
+      ]);
+
+      if (screenRes.ok) {
+        const screenData = screenRes.data;
+        const configData = configRes.ok ? configRes.data : null;
+        const sideData = sideRes.ok ? sideRes.data : [];
+        const bottom_texts = tickerRes.ok ? tickerRes.data : [];
         
+        console.log("DEBUG_CONFIG", configData);
+        console.log("DEBUG_SIDE", sideData);
+        console.log("DEBUG_BOTTOM_TEXTS", bottom_texts);
+
         // If the assigned playlist has changed in the CMS, reload the player to re-initialize
-        if (currentPlaylistId !== undefined && data.assigned_playlist_id !== currentPlaylistId) {
+        if (currentPlaylistId !== undefined && screenData.playlistId !== currentPlaylistId) {
           window.location.reload();
           return;
         }
 
+        let logoUrl = null;
+        if (configData?.media) {
+            logoUrl = await resolveMediaSrc(configData.media);
+        } else if (configData?.overlay_logo_media_id) {
+            const mediaRes = await fetchMediaBatch([configData.overlay_logo_media_id]);
+            if (mediaRes.ok && mediaRes.data.length > 0) {
+                logoUrl = await resolveMediaSrc(mediaRes.data[0]);
+            }
+        }
+        
+        const activeSideData = sideData ? sideData.filter((i: EffectiveSideContentItem) => i.is_currently_active) : [];
+
+        if (activeSideData.length > 0) {
+            const sideMediaIds = Array.from(new Set(activeSideData.map((i: EffectiveSideContentItem) => i.media_id)));
+            const sideMediaRes = await fetchMediaBatch(sideMediaIds as string[]);
+            console.log("DEBUG_SIDE_MEDIA_RES", sideMediaRes);
+            if (sideMediaRes.ok) {
+                const sideMediaMap = new Map();
+                for (const m of sideMediaRes.data) {
+                    const resolvedUrl = await resolveMediaSrc(m);
+                    sideMediaMap.set(m.id, { ...m, url: resolvedUrl });
+                }
+                activeSideData.forEach((item: EffectiveSideContentItem) => {
+                    item.media = sideMediaMap.get(item.media_id);
+                });
+            }
+        }
+
+        // Check if any active side content items exist to determine if side panel should be enabled
+        const hasSideContent = activeSideData.length > 0;
+
         setScreenLayout({
-          sidePanel: data.side_content_type !== 'none' ? {
+          sidePanel: hasSideContent ? {
             enabled: true,
             position: 'right',
             widthPercent: 30,
-            contentUrl: data.side_content?.imageUrl || data.side_content?.src,
-            contentType: data.side_content_type as 'image' | 'iframe'
+            items: activeSideData
           } : undefined,
           overlays: {
-            logo: data.logo_url ? { enabled: true, url: data.logo_url, position: 'top-right' } : undefined,
-            override: data.override_message ? { active: true, message: data.override_message } : undefined,
-            clock: { enabled: true, position: 'top-left' }
+            logo: logoUrl ? { enabled: true, url: logoUrl, position: configData?.overlay_position || 'top-right' } : undefined,
+            override: configData?.overlay_message ? { active: true, message: configData.overlay_message, position: configData.overlay_message_position || 'bottom' } : undefined,
+            clock: { 
+              enabled: [true, 'true', 1, '1'].includes(configData?.clock_enabled || false), 
+              position: (configData?.clock_position?.replace('_', '-') as any) || 'top-left' 
+            }
           },
           ticker: bottom_texts.length > 0 ? {
             enabled: true,
@@ -117,25 +163,6 @@ export default function Home() {
             speed: 50
           } : undefined
         });
-        console.log({
-          sidePanel: data.side_content_type !== 'none' ? {
-            enabled: true,
-            position: 'right',
-            widthPercent: 30,
-            contentUrl: data.side_content?.imageUrl || data.side_content?.src,
-            contentType: data.side_content_type as 'image' | 'iframe'
-          } : undefined,
-          overlays: {
-            logo: data.logo_url ? { enabled: true, url: data.logo_url, position: 'top-right' } : undefined,
-            override: data.override_message ? { active: true, message: data.override_message } : undefined,
-            clock: { enabled: true, position: 'top-left' }
-          },
-          ticker: bottom_texts.length > 0 ? {
-            enabled: true,
-            position: 'bottom',
-            speed: 50
-          } : undefined
-        })
         if (bottom_texts.length > 0) {
           const html = bottom_texts
             .sort((a, b) => a.sort_order - b.sort_order)
@@ -148,8 +175,14 @@ export default function Home() {
       }
     };
     fetch();
-    const unsubscribe = subscribeToScreenChanges(screenId, () => {
+    const unsubscribe = subscribeToScreenChanges(screenId, (payload: any) => {
       console.log('Realtime update received. Refetching layout...');
+      if (payload && payload.paired_at === null) {
+        console.log('Device unpaired. Reloading...');
+        localStorage.removeItem('player_device_token');
+        window.location.reload();
+        return;
+      }
       fetch();
     });
     return () => unsubscribe();
@@ -176,6 +209,20 @@ export default function Home() {
   const loadPlaylist = useCallback(async (p: { screenId: string; playlistId?: string | null }) => {
     const playlistRes = p.playlistId ? await fetchPlaylistById(p.playlistId) : await fetchPlaylist(p.screenId);
     if (!playlistRes.ok) {
+      const isNoPlaylistError = 
+        playlistRes.error === 'Screen has no assigned playlist' || 
+        (typeof playlistRes.error === 'string' && playlistRes.error.startsWith('Playlist not found'));
+
+      if (isNoPlaylistError) {
+        setQueue([]);
+        setCurrent(undefined);
+        if (playbackCtrlRef.current) playbackCtrlRef.current.stop();
+        if (typeof window !== 'undefined') localStorage.removeItem('player_queue_v1');
+        setError('NO PLAYLIST ASSIGNED YET, CONTACT ADMIN.');
+        setConsecutiveErrors(0);
+        return;
+      }
+
       const cached = loadQueue();
       if (cached && cached.length > 0) {
         setQueue(cached);
@@ -322,11 +369,12 @@ export default function Home() {
         />
       )}
 
-      {pairingStatus === 'paired' && !resolved.fullscreenOverride && (
+      {pairingStatus === 'paired' && (
         <>
           <MainZone box={resolved.main}>
             <PlaybackStage
               current={current}
+              error={error}
               debug={debug}
               onMediaError={(entry, message) => {
                 console.error('Media error:', message, entry);
@@ -341,8 +389,7 @@ export default function Home() {
           {resolved.sidePanel && (
             <SidePanel
               box={resolved.sidePanel}
-              contentUrl={screenLayout.sidePanel?.contentUrl}
-              contentType={screenLayout.sidePanel?.contentType}
+              items={screenLayout.sidePanel?.items}
             />
           )}
 
@@ -363,16 +410,11 @@ export default function Home() {
         </>
       )}
 
-      {pairingStatus === 'paired' && resolved.fullscreenOverride && (
-        <OverlayManager config={screenLayout.overlays} />
-      )}
+
 
       {debug && <DebugOverlay queue={queue} currentIndex={current ? queue.findIndex(q => q.itemId === current.itemId) : -1} online={online} />}
       <OfflineBadge online={online} />
-      <button
-        onClick={toggleSettings}
-        className="absolute top-2 right-2 bg-zinc-800 text-xs px-2 py-1 rounded z-60"
-      >Settings</button>
+
       {showSettings && <SettingsOverlay onRefreshPlaylist={() => screenId && loadPlaylist({ screenId })} />}
     </FullscreenContainer>
   );

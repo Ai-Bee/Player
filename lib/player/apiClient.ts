@@ -1,4 +1,4 @@
-import { ApiResult, MediaItem, Playlist, TickerConfig, TickerContent, PairingInfo, HeartbeatPayload, ScreenResponse } from './types';
+import { ApiResult, MediaItem, Playlist, TickerConfig, TickerContent, PairingInfo, HeartbeatPayload, ScreenResponse, EffectiveScreenConfig, EffectiveSideContentItem, BottomTextTicker } from './types';
 import { ensureSupabase } from './supabaseClient';
 import { axiosInstance } from './axiosInstance';
 
@@ -237,12 +237,49 @@ export async function createPairing(): Promise<ApiResult<PairingInfo>> {
   return { ok: false, error: 'Pairing via API not implemented - use device pairing flow' };
 }
 
-export async function fetchScreenDetails(screenId: string, signal?: AbortSignal): Promise<ApiResult<ScreenResponse>> {
+export async function fetchEffectiveScreenConfig(screenId: string, signal?: AbortSignal): Promise<ApiResult<EffectiveScreenConfig | null>> {
+  const supabase = ensureSupabase();
   return withRetry(async () => {
-    const response = await axiosInstance.get(`/api/screens/${screenId}`, { signal });
-    return { data: response.data, error: null };
-  });
+    const { data, error } = await supabase
+      .from('effective_screen_config')
+      .select('*')
+      .eq('screen_id', screenId)
+      .single();
+    
+    // PGRST116 means 0 rows returned
+    if (error && error.code !== 'PGRST116') throw error;
+    return { data: data || null, error: null };
+  }, { signal });
 }
+
+export async function fetchEffectiveSideContent(screenId: string, signal?: AbortSignal): Promise<ApiResult<EffectiveSideContentItem[]>> {
+  const supabase = ensureSupabase();
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('effective_side_content')
+      .select('*')
+      .eq('screen_id', screenId)
+      .order('order_index');
+      
+    if (error) throw error;
+    return { data: data || [], error: null };
+  }, { signal });
+}
+
+export async function fetchBottomTexts(screenId: string, signal?: AbortSignal): Promise<ApiResult<BottomTextTicker[]>> {
+  const supabase = ensureSupabase();
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('bottom_texts')
+      .select('*')
+      .eq('screen_id', screenId)
+      .order('sort_order');
+      
+    if (error) throw error;
+    return { data: data || [], error: null };
+  }, { signal });
+}
+
 
 // Get screen by ID
 export async function getScreen(screenId: string, signal?: AbortSignal): Promise<ApiResult<{ id: string; playlistId?: string | null }>> {

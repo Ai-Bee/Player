@@ -28,7 +28,8 @@ export async function getScreenByCode(_code: string): Promise<Screen | null> {
     .eq('id', decoded.screen_id)
     .single();
 
-  if (error || !data) {
+  // If no data, or if paired_at is null (meaning it was unpaired), return null
+  if (error || !data || !data.paired_at) {
     return null;
   }
   

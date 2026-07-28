@@ -19,7 +19,7 @@ export const OverlayManager: React.FC<OverlayManagerProps> = ({ config }) => {
     if (!config) return null;
 
     const getPositionClass = (pos?: string) => {
-        switch (pos) {
+        switch (pos?.replace('_', '-')) {
             case 'top-left': return 'top-4 left-4';
             case 'top-right': return 'top-4 right-4';
             case 'bottom-left': return 'bottom-4 left-4';
@@ -30,10 +30,10 @@ export const OverlayManager: React.FC<OverlayManagerProps> = ({ config }) => {
 
     return (
         <div className="absolute inset-0 pointer-events-none z-50">
-            {/* Fullscreen Override */}
+            {/* Message Override */}
             {config.override?.active && (
-                <div className="absolute inset-0 bg-red-600/90 flex items-center justify-center p-12 text-center pointer-events-auto">
-                    <h1 className="text-6xl font-black text-white uppercase tracking-tighter animate-pulse">
+                <div className="absolute left-0 right-0 bottom-0 bg-red-600 animate-pulse-red p-6 text-center pointer-events-none shadow-2xl border-y border-red-800">
+                    <h1 className="text-4xl font-bold text-white tracking-wide">
                         {config.override.message}
                     </h1>
                 </div>

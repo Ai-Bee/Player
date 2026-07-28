@@ -5,6 +5,7 @@ import { QueueEntry } from '../../lib/player/types';
 
 interface PlaybackStageProps {
   current?: QueueEntry;
+  error?: string | null;
   debug?: boolean;
   onMediaError?: (entry: QueueEntry, message: string) => void;
   onVideoEnded?: () => void;
@@ -13,7 +14,17 @@ interface PlaybackStageProps {
 }
 
 // Renders the current media entry. Video/image/iframe support.
-export const PlaybackStage: React.FC<PlaybackStageProps> = ({ current, debug, onMediaError, onVideoEnded, onVideoWaiting, onVideoPlaying }) => {
+export const PlaybackStage: React.FC<PlaybackStageProps> = ({ current, error, debug, onMediaError, onVideoEnded, onVideoWaiting, onVideoPlaying }) => {
+  if (error === 'NO PLAYLIST ASSIGNED YET, CONTACT ADMIN.') {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-black w-full h-full">
+        <div className="text-zinc-400 text-2xl font-bold tracking-widest text-center px-4">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
   if (!current) {
     return <div className="flex flex-1 items-center justify-center text-zinc-400">No content</div>;
   }

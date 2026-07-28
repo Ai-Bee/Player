@@ -68,12 +68,32 @@ export interface QueueEntry {
   endUnix?: number; // optional schedule window end (epoch seconds)
 }
 
+export interface EffectiveScreenConfig {
+  id: string; // screen_id
+  overlay_logo_media_id?: string | null;
+  overlay_position?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | null;
+  overlay_message?: string | null;
+  overlay_message_position?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | null;
+  clock_enabled?: boolean | null;
+  clock_position?: "top_left" | "top_right" | "bottom_left" | "bottom_right" | null;
+  media?: MediaItem | null; // Resolved via relation embedding
+}
+
+export interface EffectiveSideContentItem {
+  id: string;
+  screen_id: string;
+  media_id: string;
+  order_index: number;
+  duration_seconds: number;
+  is_currently_active: boolean;
+  media?: MediaItem | null; // Resolved via relation embedding
+}
+
 export interface SidePanelConfig {
   enabled: boolean;
   position: "left" | "right";
   widthPercent: number; // max 30
-  contentUrl?: string;
-  contentType?: 'image' | 'iframe';
+  items?: EffectiveSideContentItem[];
 }
 
 export interface OverlayConfig {
@@ -89,6 +109,7 @@ export interface OverlayConfig {
   override?: {
     active: boolean;
     message: string;
+    position?: string;
   };
 }
 

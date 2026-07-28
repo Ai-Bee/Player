@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node transpile-out.js",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit"
@@ -29,9 +29,18 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "baseline-browser-mapping": "^2.9.19",
+    "esbuild": "^0.28.1",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
+    "postcss-preset-env": "^11.3.2",
     "tailwindcss": "^4",
     "typescript": "^5"
-  }
+  },
+  "browserslist": [
+    "chrome >= 69",
+    "android >= 6",
+    "edge >= 79",
+    "firefox >= 67",
+    "ios >= 12"
+  ]
 }
