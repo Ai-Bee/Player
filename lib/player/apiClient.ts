@@ -1,4 +1,4 @@
-import { ApiResult, MediaItem, Playlist, TickerConfig, TickerContent, PairingInfo, HeartbeatPayload, ScreenResponse, EffectiveScreenConfig, EffectiveSideContentItem, BottomTextTicker } from './types';
+import { ApiResult, TickerConfig, TickerContent, PairingInfo, HeartbeatPayload, ScreenConfigPayload } from './types';
 import { ensureSupabase } from './supabaseClient';
 import { axiosInstance } from './axiosInstance';
 
@@ -56,115 +56,6 @@ async function withRetry<T>(
   return { ok: false, error: 'unreachable' };
 }
 
-// Fetch playlist assigned to a screen
-export async function fetchPlaylist(screenId: string, signal?: AbortSignal): Promise<ApiResult<Playlist>> {
-  const supabase = ensureSupabase();
-
-  return withRetry(async () => {
-    // Get the screen with its assigned playlist
-    const { data: screen, error: screenError } = await supabase
-      .from('screens')
-      .select('assigned_playlist_id')
-      .eq('id', screenId)
-      .single();
-
-    if (screenError) throw screenError;
-    if (!screen?.assigned_playlist_id) {
-      throw new Error('Screen has no assigned playlist');
-    }
-
-    const playlistResult = await fetchPlaylistById(screen.assigned_playlist_id, signal);
-    if (!playlistResult.ok) throw new Error(playlistResult.error);
-
-    return { data: playlistResult.data, error: null };
-  }, { signal });
-}
-
-// Fetch playlist by ID with its items and media
-export async function fetchPlaylistById(playlistId: string, signal?: AbortSignal): Promise<ApiResult<Playlist>> {
-  const supabase = ensureSupabase();
-
-  return withRetry(async () => {
-    // Fetch playlist with items (joined with media for order)
-    const { data: playlist, error: playlistError } = await supabase
-      .from('playlists')
-      .select(`
-        id,
-        name,
-        description,
-        playlist_items (
-          id,
-          media_id,
-          order_index,
-          added_at
-        )
-      `)
-      .eq('id', playlistId)
-      .single();
-
-    if (playlistError) {
-      // Check if it's a "no rows found" error
-      if (playlistError.code === 'PGRST116') {
-        throw new Error(`Playlist not found: ${playlistId}`);
-      }
-      throw playlistError;
-    }
-    if (!playlist) throw new Error('Playlist not found');
-
-    // Transform to expected Playlist format
-    const items = (playlist.playlist_items || []).map((item: {
-      id: string;
-      media_id: string;
-      order_index: number | null;
-      added_at: string;
-    }) => ({
-      id: item.id,
-      mediaId: item.media_id,
-      order: item.order_index || 0,
-      overrides: {} // Overrides would come from a separate column if implemented
-    }));
-
-    // Sort by order
-    items.sort((a, b) => a.order - b.order);
-
-    return {
-      data: {
-        id: playlist.id,
-        name: playlist.name,
-        description: playlist.description || '',
-        items,
-      },
-      error: null
-    };
-  }, { signal });
-}
-
-// Fetch multiple media items by IDs
-export async function fetchMediaBatch(ids: string[], signal?: AbortSignal): Promise<ApiResult<MediaItem[]>> {
-  const supabase = ensureSupabase();
-
-  return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('media')
-      .select('*')
-      .in('id', ids);
-
-    if (error) throw error;
-
-    // MediaItem uses snake_case matching DB schema
-    return { data: data || [], error: null };
-  }, { signal });
-}
-
-// Fetch single media item
-export async function fetchMedia(id: string, signal?: AbortSignal): Promise<ApiResult<MediaItem>> {
-  const result = await fetchMediaBatch([id], signal);
-  if (!result.ok) return result;
-  if (result.data.length === 0) {
-    return { ok: false, error: 'Media not found' };
-  }
-  return { ok: true, data: result.data[0] };
-}
 
 // Fetch ticker content for current user
 export async function fetchTicker(signal?: AbortSignal): Promise<ApiResult<TickerContent>> {
@@ -237,72 +128,21 @@ export async function createPairing(): Promise<ApiResult<PairingInfo>> {
   return { ok: false, error: 'Pairing via API not implemented - use device pairing flow' };
 }
 
-export async function fetchEffectiveScreenConfig(screenId: string, signal?: AbortSignal): Promise<ApiResult<EffectiveScreenConfig | null>> {
-  const supabase = ensureSupabase();
+export async function fetchScreenConfig(signal?: AbortSignal): Promise<ApiResult<ScreenConfigPayload>> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('effective_screen_config')
-      .select('*')
-      .eq('screen_id', screenId)
-      .single();
-    
-    // PGRST116 means 0 rows returned
-    if (error && error.code !== 'PGRST116') throw error;
-    return { data: data || null, error: null };
-  }, { signal });
-}
-
-export async function fetchEffectiveSideContent(screenId: string, signal?: AbortSignal): Promise<ApiResult<EffectiveSideContentItem[]>> {
-  const supabase = ensureSupabase();
-  return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('effective_side_content')
-      .select('*')
-      .eq('screen_id', screenId)
-      .order('order_index');
-      
-    if (error) throw error;
-    return { data: data || [], error: null };
-  }, { signal });
-}
-
-export async function fetchBottomTexts(screenId: string, signal?: AbortSignal): Promise<ApiResult<BottomTextTicker[]>> {
-  const supabase = ensureSupabase();
-  return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('bottom_texts')
-      .select('*')
-      .eq('screen_id', screenId)
-      .order('sort_order');
-      
-    if (error) throw error;
-    return { data: data || [], error: null };
+    try {
+      const response = await axiosInstance.get<ScreenConfigPayload>('/api/player/screen-config', { signal });
+      return { data: response.data, error: null };
+    } catch (err: any) {
+      if (err.response?.data?.message) {
+        throw new Error(err.response.data.message);
+      }
+      throw err;
+    }
   }, { signal });
 }
 
 
-// Get screen by ID
-export async function getScreen(screenId: string, signal?: AbortSignal): Promise<ApiResult<{ id: string; playlistId?: string | null }>> {
-  const supabase = ensureSupabase();
-
-  return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('screens')
-      .select('id, assigned_playlist_id')
-      .eq('id', screenId)
-      .single();
-    console.log({ data, error });
-    if (error) throw error;
-
-    return {
-      data: {
-        id: data.id,
-        playlistId: data.assigned_playlist_id,
-      },
-      error: null
-    };
-  }, { signal });
-}
 
 // Heartbeat - update screen status
 export async function heartbeat(screenId: string, payload: HeartbeatPayload, signal?: AbortSignal): Promise<ApiResult<{ ok: boolean }>> {
@@ -333,59 +173,37 @@ export function abortableTimeout(ms: number, signal: AbortSignal): Promise<void>
   });
 }
 
-export function subscribeToScreenChanges(
+export function subscribeToScreenInvalidations(
   screenId: string,
-  onScreenUpdate: (payload: any) => void
-) {
-  const supabase = ensureSupabase();
-  const channel = supabase
-    .channel(`public:screens:${screenId}`)
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'screens', filter: `id=eq.${screenId}` },
-      (payload) => {
-        onScreenUpdate(payload.new);
-      }
-    )
-    .subscribe((status, err) => {
-      console.log(`[Realtime Debug] Screens Channel: ${status}`, err || '');
-    });
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}
-
-export function subscribeToPlaylistChanges(
-  playlistId: string,
-  onPlaylistUpdate: () => void
+  groupId: string | null,
+  onInvalidate: () => void
 ) {
   const supabase = ensureSupabase();
   
-  const playlistsChannel = supabase
-    .channel(`public:playlists:${playlistId}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'playlists', filter: `id=eq.${playlistId}` },
-      () => onPlaylistUpdate()
-    )
-    .subscribe((status, err) => {
-      console.log(`[Realtime Debug] Playlists Channel: ${status}`, err || '');
-    });
+  const channels = [
+    supabase.channel(`public:screens:${screenId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'screens', filter: `id=eq.${screenId}` }, () => onInvalidate())
+      .subscribe(),
+    
+    supabase.channel(`public:screen_zone_content:${screenId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'screen_zone_content', filter: `screen_id=eq.${screenId}` }, () => onInvalidate())
+      .subscribe()
+  ];
 
-  const playlistItemsChannel = supabase
-    .channel(`public:playlist_items:${playlistId}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'playlist_items', filter: `playlist_id=eq.${playlistId}` },
-      () => onPlaylistUpdate()
-    )
-    .subscribe((status, err) => {
-      console.log(`[Realtime Debug] Playlist Items Channel: ${status}`, err || '');
-    });
+  if (groupId) {
+    channels.push(
+      supabase.channel(`public:screen_groups:${groupId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'screen_groups', filter: `id=eq.${groupId}` }, () => onInvalidate())
+        .subscribe(),
+      
+      supabase.channel(`public:group_zone_content:${groupId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'group_zone_content', filter: `group_id=eq.${groupId}` }, () => onInvalidate())
+        .subscribe()
+    );
+  }
 
   return () => {
-    supabase.removeChannel(playlistsChannel);
-    supabase.removeChannel(playlistItemsChannel);
+    channels.forEach(ch => supabase.removeChannel(ch));
   };
 }
+

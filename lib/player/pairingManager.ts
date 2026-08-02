@@ -1,5 +1,5 @@
 import { PairingInfo } from './types';
-import { createPairing, getScreen } from './apiClient';
+import { fetchScreenConfig } from './apiClient';
 
 const STORAGE_KEY = 'player_pairing_v1';
 
@@ -35,17 +35,16 @@ export async function getOrCreatePairing(): Promise<PairingInfo> {
   const existing = loadPairing();
   if (existing) {
     // Validate screen still exists & maybe playlist assignment updated.
-    const screenRes = await getScreen(existing.screenId);
-    if (screenRes.ok) {
-      const latest = { screenId: screenRes.data.id, playlistId: screenRes.data.playlistId };
-      savePairing(latest);
-      return latest;
-    } else {
+    try {
+      const configRes = await fetchScreenConfig();
+      if (configRes.ok) {
+        return existing;
+      } else {
+        clearPairing();
+      }
+    } catch {
       clearPairing();
     }
   }
-  const res = await createPairing();
-  if (!res.ok) throw new Error('Failed to pair screen: ' + res.error);
-  savePairing(res.data);
-  return res.data;
+  throw new Error('Pairing via API not implemented - use device pairing flow');
 }

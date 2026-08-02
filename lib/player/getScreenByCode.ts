@@ -24,7 +24,7 @@ export async function getScreenByCode(_code: string): Promise<Screen | null> {
   const supabase = ensureSupabase();
   const { data, error } = await supabase
     .from('screens')
-    .select('id, screen_code, resolution_id, assigned_playlist_id, paired_at')
+    .select('id, screen_code, resolution_id, group_id, paired_at')
     .eq('id', decoded.screen_id)
     .single();
 
@@ -37,7 +37,8 @@ export async function getScreenByCode(_code: string): Promise<Screen | null> {
     id: data.id,
     code: data.screen_code,
     resolution_id: data.resolution_id,
-    playlistId: data.assigned_playlist_id,
+
+    groupId: data.group_id,
     paired_at: data.paired_at,
   };
 }

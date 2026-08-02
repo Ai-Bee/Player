@@ -73,7 +73,9 @@ export interface EffectiveScreenConfig {
   overlay_logo_media_id?: string | null;
   overlay_position?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | null;
   overlay_message?: string | null;
-  overlay_message_position?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | null;
+  overlay_message_position?: "top" | "bottom" | null;
+  rolling_texts?: string[] | null;
+  rolling_texts_position?: "top" | "bottom" | null;
   clock_enabled?: boolean | null;
   clock_position?: "top_left" | "top_right" | "bottom_left" | "bottom_right" | null;
   media?: MediaItem | null; // Resolved via relation embedding
@@ -109,7 +111,7 @@ export interface OverlayConfig {
   override?: {
     active: boolean;
     message: string;
-    position?: string;
+    position?: "top" | "bottom";
   };
 }
 
@@ -117,6 +119,50 @@ export interface ScreenLayout {
   sidePanel?: SidePanelConfig;
   ticker?: TickerConfig;
   overlays?: OverlayConfig;
+  
+  // New Layout System
+  layout_id?: string;
+  zones?: Record<string, ZoneConfig>;
+}
+
+export type ZoneType = 'playlist' | 'media' | 'iframe' | 'rolling_text';
+
+export interface ZoneConfig {
+  key: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  z: number;
+  allowed_content_types?: string[];
+  content: {
+    type: ZoneType;
+    playlist?: any;
+    media?: any;
+    rolling_text?: any;
+    iframe_source?: any;
+  } | null;
+}
+
+export interface ScreenConfigPayload {
+  screen_id: string;
+  name: string;
+  layout: {
+    id: string;
+    name: string;
+    zones: ZoneConfig[];
+  };
+  legacy_overlays: {
+    clock_enabled?: boolean;
+    clock_position?: "top_left" | "top_right" | "bottom_left" | "bottom_right" | null;
+    overlay_logo_media_id?: string | null;
+    overlay_message?: string | null;
+    overlay_message_position?: "top" | "bottom" | null;
+    overlay_position?: "top_left" | "top_right" | "bottom_left" | "bottom_right" | null;
+    rolling_texts?: string[] | null;
+    rolling_texts_position?: "top" | "bottom" | null;
+    logo_url?: string | null;
+  };
 }
 
 export interface ScreenResolution {
@@ -138,12 +184,7 @@ export interface AssignedPlaylist {
   name?: string;
 }
 
-export interface BottomTextTicker {
-  id: string;
-  content: string;
-  is_active: boolean;
-  sort_order: number;
-}
+
 
 export interface ScreenData {
   id: string;
@@ -173,7 +214,8 @@ export interface ScreenData {
   assigned_playlist?: AssignedPlaylist | null;
   playlist?: AssignedPlaylist | null;
   resolution?: ScreenResolution | null;
-  bottom_texts: BottomTextTicker[];
+  rolling_texts?: string[] | null;
+  rolling_texts_position?: "top" | "bottom" | null;
 }
 
 export interface ScreenResponse extends ScreenData {}
@@ -182,7 +224,8 @@ export interface Screen {
   id: string;
   code: string;
   resolution_id?: string;
-  playlistId?: string | null;
+
+  groupId?: string | null;
   paired_at?: string | null;
   layout?: ScreenLayout;
 }

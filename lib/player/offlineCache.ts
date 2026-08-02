@@ -1,33 +1,22 @@
-import { QueueEntry } from './types';
+import { ScreenConfigPayload } from './types';
 
-const KEY = 'player_queue_cache_v1';
+const KEY = 'player_config_cache_v2';
 
-export function saveQueue(entries: QueueEntry[]) {
+export function saveConfig(config: ScreenConfigPayload) {
   try {
-    const payload = entries.map(e => ({
-      itemId: e.itemId,
-      mediaId: e.mediaId,
-      title: e.title,
-      type: e.type,
-      src: e.src,
-      duration: e.duration,
-      mute: e.mute,
-      startUnix: e.startUnix,
-      endUnix: e.endUnix,
-    }));
-    localStorage.setItem(KEY, JSON.stringify(payload));
+    localStorage.setItem(KEY, JSON.stringify(config));
   } catch {
     // ignore serialization errors
   }
 }
 
-export function loadQueue(): QueueEntry[] | null {
+export function loadConfig(): ScreenConfigPayload | null {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as QueueEntry[];
+    const parsed = JSON.parse(raw) as ScreenConfigPayload;
     return parsed;
   } catch {
     return null;
   }
-}
+}
