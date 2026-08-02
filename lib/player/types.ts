@@ -125,7 +125,36 @@ export interface ScreenLayout {
   zones?: Record<string, ZoneConfig>;
 }
 
+export type SupportedLayoutId = 
+  | 'full-screen' 
+  | 'split-65-35-ticker-banner' 
+  | 'stacked-main-ticker-banner' 
+  | string;
+
+export type ZoneKey = 'main' | 'ticker' | 'banner' | 'side' | string;
+
 export type ZoneType = 'playlist' | 'media' | 'iframe' | 'rolling_text';
+
+export interface RollingTextItem {
+  id?: string;
+  text?: string;
+  message?: string;
+  content?: string;
+  title?: string;
+}
+
+export interface RollingTextConfig {
+  items?: (string | RollingTextItem)[];
+  texts?: (string | RollingTextItem)[];
+  messages?: (string | RollingTextItem)[];
+  text?: string;
+  speed?: number; // duration in seconds or speed multiplier
+  speed_seconds?: number;
+  bg?: string;
+  color?: string;
+  fontSize?: string;
+  separator?: string;
+}
 
 export interface ZoneConfig {
   key: string;
@@ -139,7 +168,7 @@ export interface ZoneConfig {
     type: ZoneType;
     playlist?: any;
     media?: any;
-    rolling_text?: any;
+    rolling_text?: RollingTextConfig | (string | RollingTextItem)[] | string | any;
     iframe_source?: any;
   } | null;
 }

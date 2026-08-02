@@ -82,3 +82,66 @@ body {
 .animate-pulse-red {
   animation: pulseRed 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+@keyframes marquee-ltr {
+  0% {
+    left: 0%;
+    transform: translateX(-100%);
+  }
+  100% {
+    left: 100%;
+    transform: translateX(0%);
+  }
+}
+
+@keyframes marquee-rtl {
+  0% {
+    left: 100%;
+    transform: translateX(0%);
+  }
+  100% {
+    left: 0%;
+    transform: translateX(-100%);
+  }
+}
+
+.animate-marquee-ltr {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform, left;
+  animation-name: marquee-ltr;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.animate-marquee-rtl {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform, left;
+  animation-name: marquee-rtl;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.animate-marquee {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform, left;
+  animation-name: marquee-ltr;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+

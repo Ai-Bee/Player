@@ -9,9 +9,10 @@ import { generatePairingCode, registerDevice, pollDevicePaired } from '../lib/pl
 import { getScreenByCode } from '../lib/player/getScreenByCode';
 import { useTVMode } from '../lib/player/hooks/useTVMode';
 import { useSpatialNavigation } from '../lib/player/hooks/useSpatialNavigation';
-import { saveConfig, loadConfig } from '../lib/player/offlineCache';
+import { saveConfig, loadConfig, loadConfigOrDefault, getDefaultConfig } from '../lib/player/offlineCache';
 import { heartbeat, fetchScreenConfig, subscribeToScreenInvalidations } from '../lib/player/apiClient';
 import { ScreenConfigPayload } from '../lib/player/types';
+import { resolveMediaId } from '../lib/player/assetResolver';
 import { LayoutManager } from './components/LayoutManager';
 import { OverlayManager } from './components/OverlayManager';
 import { usePlayerStore } from '../lib/player/playerStore';
@@ -71,52 +72,63 @@ export default function Home() {
   }, []);
 
   const startConfigPolling = useCallback((screenId: string, groupId?: string | null, currentPlaylistId?: string | null) => {
+    const applyOverlays = async (config: ScreenConfigPayload) => {
+      const apiOverlays = config.legacy_overlays || (config as any).overlays || {};
+      let logoUrl = apiOverlays.logo_url || (config as any).logo_url || (config as any).overlay_logo_url;
+      const overlayLogoMediaId = apiOverlays.overlay_logo_media_id || (config as any).overlay_logo_media_id;
+
+      if (!logoUrl && overlayLogoMediaId) {
+        logoUrl = await resolveMediaId(overlayLogoMediaId);
+      }
+
+      const overlayPos = apiOverlays.overlay_position || (config as any).overlay_position || 'top_right';
+      const overlayMsg = apiOverlays.overlay_message || (config as any).override_message || (config as any).overlay_message;
+      const overlayMsgPos = apiOverlays.overlay_message_position || (config as any).overlay_message_position || 'top';
+      const clockEnabled = [true, 'true', 1, '1'].includes(apiOverlays.clock_enabled ?? (config as any).clock_enabled ?? false);
+      const clockPos = apiOverlays.clock_position || (config as any).clock_position || 'top_left';
+
+      setScreenLayout({
+        overlays: {
+          logo: logoUrl ? { 
+            enabled: true, 
+            url: logoUrl, 
+            position: (overlayPos.replace(/_/g, '-') as any) || 'top-right' 
+          } : undefined,
+          override: overlayMsg ? { 
+            active: true, 
+            message: overlayMsg, 
+            position: overlayMsgPos === 'bottom' ? 'bottom' : 'top' 
+          } : undefined,
+          clock: { 
+            enabled: clockEnabled, 
+            position: (clockPos.replace(/_/g, '-') as any) || 'top-left' 
+          }
+        }
+      });
+    };
+
     const fetch = async () => {
       try {
         const configRes = await fetchScreenConfig();
+
         if (configRes.ok) {
           setConfigPayload(configRes.data);
           saveConfig(configRes.data);
-          
-          const apiOverlays = configRes.data.legacy_overlays || {};
-          setScreenLayout({
-            overlays: {
-              logo: apiOverlays.logo_url ? { 
-                enabled: true, 
-                url: apiOverlays.logo_url, 
-                position: (apiOverlays.overlay_position?.replace('_', '-') as any) || 'top-right' 
-              } : undefined,
-              override: apiOverlays.overlay_message ? { 
-                active: true, 
-                message: apiOverlays.overlay_message, 
-                position: apiOverlays.overlay_message_position === 'top' ? 'top' : 'bottom' 
-              } : undefined,
-              clock: { 
-                enabled: [true, 'true', 1, '1'].includes(apiOverlays.clock_enabled || false), 
-                position: (apiOverlays.clock_position?.replace('_', '-') as any) || 'top-left' 
-              }
-            }
-          });
+          await applyOverlays(configRes.data);
           setTickerContent(undefined);
           setError(null);
         } else {
-          // If offline or network error, fallback to cache
-          const cached = loadConfig();
-          if (cached) {
-            setConfigPayload(cached);
-            setError('Using cached configuration (offline)');
-          } else {
-            setError(configRes.error);
-          }
+          // If offline or network error, fallback to cache or default full-screen template
+          const fallbackConfig = loadConfigOrDefault(screenId);
+          setConfigPayload(fallbackConfig);
+          await applyOverlays(fallbackConfig);
+          setError(loadConfig() ? 'Using cached configuration (offline)' : 'Using default full-screen layout (offline)');
         }
       } catch (err: any) {
-        const cached = loadConfig();
-        if (cached) {
-          setConfigPayload(cached);
-          setError('Using cached configuration (offline)');
-        } else {
-          setError(err.message || 'Failed to fetch config');
-        }
+        const fallbackConfig = loadConfigOrDefault(screenId);
+        setConfigPayload(fallbackConfig);
+        await applyOverlays(fallbackConfig);
+        setError(loadConfig() ? 'Using cached configuration (offline)' : 'Using default full-screen layout (offline)');
       }
     };
     fetch();

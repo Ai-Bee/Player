@@ -70,16 +70,7 @@ export const ZoneRenderer: React.FC<ZoneRendererProps> = ({ zone, zoneId, handle
   }
 
   if (content.type === 'rolling_text') {
-    const items = content.rolling_text?.items || [];
-    return (
-      <div className="w-full h-16 bg-zinc-900 text-white flex items-center overflow-hidden whitespace-nowrap">
-        <div className="animate-[marquee_20s_linear_infinite] inline-block">
-          {items.map((item: string, i: number) => (
-            <span key={i} className="mx-8 text-xl font-bold">{item}</span>
-          ))}
-        </div>
-      </div>
-    );
+    return <RollingTextZone config={content.rolling_text} />;
   }
 
   // Fallback to black box
@@ -139,5 +130,75 @@ const PlaylistZone = ({ items, onItemChange }: { items: any[], onItemChange?: (e
       onVideoWaiting={() => playbackCtrlRef.current?.pauseTimer()}
       onVideoPlaying={() => playbackCtrlRef.current?.resumeTimer()}
     />
+  );
+};
+
+export function extractRollingTextItems(config: any): string[] {
+  if (!config) return [];
+
+  let rawList: any[] = [];
+  if (Array.isArray(config)) {
+    rawList = config;
+  } else if (Array.isArray(config.items)) {
+    rawList = config.items;
+  } else if (Array.isArray(config.texts)) {
+    rawList = config.texts;
+  } else if (Array.isArray(config.messages)) {
+    rawList = config.messages;
+  } else if (typeof config.text === 'string' && config.text.trim()) {
+    return [config.text.trim()];
+  } else if (typeof config === 'string' && config.trim()) {
+    return [config.trim()];
+  }
+
+  return rawList
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (typeof item === 'number') return String(item);
+      if (item && typeof item === 'object') {
+        const textVal = item.text ?? item.message ?? item.content ?? item.title ?? item.name ?? item.value;
+        if (typeof textVal === 'string') return textVal.trim();
+        if (typeof textVal === 'number') return String(textVal);
+      }
+      return '';
+    })
+    .filter((text): text is string => Boolean(text && text.length > 0));
+}
+
+const RollingTextZone = ({ config }: { config: any }) => {
+  const items = extractRollingTextItems(config);
+
+  if (items.length === 0) {
+    return <div className="w-full h-full bg-zinc-900" />;
+  }
+
+  const speedSeconds = Number(config?.speed_seconds ?? config?.speed ?? (typeof config?.duration === 'number' ? config.duration : 25));
+  const duration = Math.max(5, isNaN(speedSeconds) || speedSeconds <= 0 ? 25 : speedSeconds);
+  const bgColor = config?.bg || config?.bg_color || '#18181b';
+  const textColor = config?.color || config?.text_color || '#ffffff';
+  const fontSize = config?.fontSize || config?.font_size || '1.25rem';
+  const separator = config?.separator || '•';
+  const direction = (config?.direction || 'rtl').toLowerCase() === 'ltr' ? 'ltr' : 'rtl';
+  const animationClass = direction === 'rtl' ? 'animate-marquee-rtl' : 'animate-marquee-ltr';
+
+  return (
+    <div
+      className="w-full h-full relative overflow-hidden flex items-center whitespace-nowrap select-none"
+      style={{ backgroundColor: bgColor, color: textColor, fontSize }}
+    >
+      <div
+        className={`${animationClass} flex items-center h-full`}
+        style={{ animationDuration: `${duration}s` }}
+      >
+        {items.map((item, i) => (
+          <React.Fragment key={i}>
+            <span className="mx-6 font-semibold tracking-wide flex-shrink-0">{item}</span>
+            {i < items.length - 1 && (
+              <span className="opacity-60 text-sm flex-shrink-0">{separator}</span>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
   );
 };

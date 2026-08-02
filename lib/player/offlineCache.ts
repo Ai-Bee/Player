@@ -1,4 +1,5 @@
 import { ScreenConfigPayload } from './types';
+import { createDefaultFullscreenConfig } from './layoutTemplates';
 
 const KEY = 'player_config_cache_v2';
 
@@ -10,6 +11,10 @@ export function saveConfig(config: ScreenConfigPayload) {
   }
 }
 
+export function getDefaultConfig(screenId?: string): ScreenConfigPayload {
+  return createDefaultFullscreenConfig(screenId || 'offline-screen');
+}
+
 export function loadConfig(): ScreenConfigPayload | null {
   try {
     const raw = localStorage.getItem(KEY);
@@ -19,4 +24,8 @@ export function loadConfig(): ScreenConfigPayload | null {
   } catch {
     return null;
   }
+}
+
+export function loadConfigOrDefault(screenId?: string): ScreenConfigPayload {
+  return loadConfig() || getDefaultConfig(screenId);
 }

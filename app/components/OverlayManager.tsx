@@ -19,12 +19,12 @@ export const OverlayManager: React.FC<OverlayManagerProps> = ({ config }) => {
     if (!config) return null;
 
     const getPositionClass = (pos?: string) => {
-        switch (pos?.replace('_', '-')) {
-            case 'top-left': return 'top-4 left-4';
-            case 'top-right': return 'top-4 right-4';
-            case 'bottom-left': return 'bottom-4 left-4';
-            case 'bottom-right': return 'bottom-4 right-4';
-            default: return 'top-4 right-4';
+        switch (pos?.replace(/_/g, '-')) {
+            case 'top-left': return 'top-6 left-6';
+            case 'top-right': return 'top-6 right-6';
+            case 'bottom-left': return 'bottom-6 left-6';
+            case 'bottom-right': return 'bottom-6 right-6';
+            default: return 'top-6 right-6';
         }
     };
 
@@ -39,8 +39,6 @@ export const OverlayManager: React.FC<OverlayManagerProps> = ({ config }) => {
         );
     };
 
-
-
     return (
         <div className="absolute inset-0 pointer-events-none z-50">
             {/* Top Stack */}
@@ -54,10 +52,18 @@ export const OverlayManager: React.FC<OverlayManagerProps> = ({ config }) => {
             </div>
 
             {/* Logo */}
-            {config.logo?.enabled && (
-                <div className={`absolute ${getPositionClass(config.logo.position)} w-24 h-24 pointer-events-none`}>
+            {config.logo?.enabled && config.logo.url && (
+                <div className={`absolute ${getPositionClass(config.logo.position)} max-w-[12rem] max-h-[6rem] pointer-events-none z-50 flex items-center justify-center`}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={config.logo.url} alt="Logo" className="w-full h-full object-contain drop-shadow-lg" />
+                    <img 
+                        src={config.logo.url} 
+                        alt="Logo" 
+                        className="w-auto h-auto max-w-full max-h-24 object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]"
+                        onError={(e) => {
+                            console.warn('Overlay logo failed to load', config.logo?.url);
+                            (e.target as HTMLElement).style.display = 'none';
+                        }}
+                    />
                 </div>
             )}
 
