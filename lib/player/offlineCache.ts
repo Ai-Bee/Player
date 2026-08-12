@@ -28,4 +28,12 @@ export function loadConfig(): ScreenConfigPayload | null {
 
 export function loadConfigOrDefault(screenId?: string): ScreenConfigPayload {
   return loadConfig() || getDefaultConfig(screenId);
+}
+
+export function clearConfig() {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    // ignore
+  }
 }

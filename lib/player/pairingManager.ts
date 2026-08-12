@@ -1,5 +1,6 @@
 import { PairingInfo } from './types';
 import { fetchScreenConfig } from './apiClient';
+import { clearConfig } from './offlineCache';
 
 const STORAGE_KEY = 'player_pairing_v1';
 
@@ -28,6 +29,7 @@ export function clearPairing() {
   localStorage.removeItem('player_device_token');
   localStorage.removeItem('player_pairing_code_v1');
   localStorage.removeItem('player_queue_cache_v1');
+  clearConfig();
 }
 
 // Attempts to get existing pairing or create a new one.

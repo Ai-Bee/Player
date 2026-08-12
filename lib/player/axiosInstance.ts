@@ -19,3 +19,13 @@ axiosInstance.interceptors.request.use((config) => {
     }
     return config;
 });
+
+axiosInstance.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error?.response?.status === 401 && typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('player:unpaired'));
+        }
+        return Promise.reject(error);
+    }
+);

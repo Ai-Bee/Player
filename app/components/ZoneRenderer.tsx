@@ -46,12 +46,16 @@ export const ZoneRenderer: React.FC<ZoneRendererProps> = ({ zone, zoneId, handle
   if (content.type === 'media') {
     const url = content.media?.url;
     if (!url) return <div className="w-full h-full bg-black"></div>;
-    
+
     const isVideo = url.match(/\.(mp4|webm|ogg)$/i);
-    return isVideo ? (
-      <video src={url} className="w-full h-full object-cover" autoPlay muted loop />
-    ) : (
-      <img src={url} className="w-full h-full object-cover" alt="Media Zone" />
+    return (
+      <div className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center">
+        {isVideo ? (
+          <video src={url} className="w-full" style={{ height: 'auto' }} autoPlay muted loop />
+        ) : (
+          <img src={url} className="w-full" style={{ height: 'auto' }} alt="Media Zone" />
+        )}
+      </div>
     );
   }
 

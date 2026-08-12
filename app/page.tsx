@@ -11,6 +11,7 @@ import { useTVMode } from '../lib/player/hooks/useTVMode';
 import { useSpatialNavigation } from '../lib/player/hooks/useSpatialNavigation';
 import { saveConfig, loadConfig, loadConfigOrDefault, getDefaultConfig } from '../lib/player/offlineCache';
 import { heartbeat, fetchScreenConfig, subscribeToScreenInvalidations } from '../lib/player/apiClient';
+import { clearPairing } from '../lib/player/pairingManager';
 import { ScreenConfigPayload } from '../lib/player/types';
 import { resolveMediaId } from '../lib/player/assetResolver';
 import { LayoutManager } from './components/LayoutManager';
@@ -71,6 +72,24 @@ export default function Home() {
     }
   }, []);
 
+  // Handle server-side unpairing: when the backend returns 401, the axios interceptor
+  // fires this event. We clear all local state and send the player back to the pairing screen.
+  useEffect(() => {
+    function handleUnpaired() {
+      console.log('player:unpaired received — clearing session and returning to pairing screen.');
+      clearPairing();
+      setConfigPayload(null);
+      setScreenId(null);
+      setScreenLayout({});
+      setPairingCode(null);
+      setError(null);
+      setPairingStatus('init');
+      setRetryCount(c => c + 1);
+    }
+    window.addEventListener('player:unpaired', handleUnpaired);
+    return () => window.removeEventListener('player:unpaired', handleUnpaired);
+  }, [setScreenLayout]);
+
   const startConfigPolling = useCallback((screenId: string, groupId?: string | null, currentPlaylistId?: string | null) => {
     const applyOverlays = async (config: ScreenConfigPayload) => {
       const apiOverlays = config.legacy_overlays || (config as any).overlays || {};
@@ -117,6 +136,10 @@ export default function Home() {
           await applyOverlays(configRes.data);
           setTickerContent(undefined);
           setError(null);
+        } else if (configRes.error === 'SCREEN_UNPAIRED') {
+          // The axios interceptor already fired 'player:unpaired'.
+          // Do NOT fall back to cache — just bail silently.
+          return;
         } else {
           // If offline or network error, fallback to cache or default full-screen template
           const fallbackConfig = loadConfigOrDefault(screenId);

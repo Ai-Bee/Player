@@ -45,6 +45,10 @@ async function withRetry<T>(
       if (err instanceof DOMException && err.name === 'AbortError') {
         return { ok: false, error: 'aborted' };
       }
+      // 401 Unauthorized (screen unpaired) — bail immediately, do not retry
+      if ((err as any)?.isUnpaired) {
+        return { ok: false, error: 'SCREEN_UNPAIRED' };
+      }
       if (attempt === retries) {
         const message = err instanceof Error ? err.message : 'network error';
         return { ok: false, error: message };
@@ -134,6 +138,10 @@ export async function fetchScreenConfig(signal?: AbortSignal): Promise<ApiResult
       const response = await axiosInstance.get<ScreenConfigPayload>('/api/player/screen-config', { signal });
       return { data: response.data, error: null };
     } catch (err: any) {
+      // 401 means the screen was unpaired — throw a sentinel so withRetry skips retries
+      if (err?.response?.status === 401) {
+        throw Object.assign(new Error('SCREEN_UNPAIRED'), { isUnpaired: true });
+      }
       if (err.response?.data?.message) {
         throw new Error(err.response.data.message);
       }

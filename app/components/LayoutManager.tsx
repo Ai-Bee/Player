@@ -28,7 +28,7 @@ export const LayoutManager: React.FC<LayoutManagerProps> = ({ config, handlers }
                 height: `${zone.h}%`,
                 zIndex: zone.z
               }}
-              className="bg-black flex items-center justify-center text-zinc-600"
+              className="overflow-hidden bg-black flex items-center justify-center text-zinc-600"
             />
           );
         }
@@ -44,6 +44,7 @@ export const LayoutManager: React.FC<LayoutManagerProps> = ({ config, handlers }
               height: `${zone.h}%`,
               zIndex: zone.z
             }}
+            className="overflow-hidden"
           >
             <ZoneRenderer 
               zone={zone} 
