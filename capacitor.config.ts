@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.example.app',
+  appId: 'com.vista.river',
   appName: 'vista-player',
   webDir: 'out',
   server: {
@@ -10,6 +10,10 @@ const config: CapacitorConfig = {
   plugins: {
     CapacitorHttp: {
       enabled: true
+    },
+    CapacitorUpdater: {
+      autoUpdate: true,
+      resetWhenUpdate: false
     }
   }
 };
